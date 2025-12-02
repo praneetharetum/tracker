@@ -88,6 +88,38 @@ button {
   margin-right: 5px;
 }
 
+.family-icons {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.family-member {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.family-member:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.family-member .icon {
+  font-size: 4rem;
+  margin-bottom: 0.5rem;
+}
+
+.family-member .label {
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;
