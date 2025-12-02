@@ -1,0 +1,46 @@
+{
+  "mcpServers": {
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "env": {}
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+      "env": {}
+    },
+    "memory-bank": {
+      "command": "npx",
+      "args": ["-y", "@memory-bank/mcp"],
+      "env": {}
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp"],
+      "env": {}
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "knowledge-graph": {
+      "command": "npx",
+      "args": ["-y", "mcp-knowledge-graph"],
+      "env": {}
+    },
+    "duckduckgo": {
+      "command": "npx",
+      "args": ["-y", "duckduckgo-mcp-server"],
+      "env": {}
+    },
+    "mcp-compass": {
+      "command": "npx",
+      "args": ["-y", "@liuyoshio/mcp-compass"],
+      "env": {}
+    }
+  }
+}
