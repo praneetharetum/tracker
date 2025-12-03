@@ -42,6 +42,11 @@
   "plugins": {
     "shell": {
       "open": true
+    },
+    "sql": {
+      "preload": {
+        "db": "sqlite:tracker.db"
+      }
     }
   }
 }
