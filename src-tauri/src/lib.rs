@@ -1,9 +1,158 @@
+use serde::{Deserialize, Serialize};
+use tauri::{Manager, State};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+// ============================================================================
+// Data Models (#37)
+// ============================================================================
+
+/// Meal type enum for categorizing diet entries
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MealType {
+    Breakfast,
+    Lunch,
+    Dinner,
+    Snack,
+    Other,
+}
+
+impl std::fmt::Display for MealType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MealType::Breakfast => write!(f, "Breakfast"),
+            MealType::Lunch => write!(f, "Lunch"),
+            MealType::Dinner => write!(f, "Dinner"),
+            MealType::Snack => write!(f, "Snack"),
+            MealType::Other => write!(f, "Other"),
+        }
+    }
+}
+
+impl std::str::FromStr for MealType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Breakfast" => Ok(MealType::Breakfast),
+            "Lunch" => Ok(MealType::Lunch),
+            "Dinner" => Ok(MealType::Dinner),
+            "Snack" => Ok(MealType::Snack),
+            "Other" => Ok(MealType::Other),
+            _ => Err(format!("Unknown meal type: {}", s)),
+        }
+    }
+}
+
+/// Diet entry as stored in the database
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DietEntry {
+    pub id: i64,
+    pub member_id: i64,
+    pub timestamp: String,
+    pub meal_type: MealType,
+    pub description: String,
+    pub calories: Option<i64>,
+    pub notes: Option<String>,
+}
+
+/// Request payload for creating a new diet entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateDietEntryRequest {
+    pub member_id: i64,
+    pub timestamp: String,
+    pub meal_type: MealType,
+    pub description: String,
+    pub calories: Option<i64>,
+    pub notes: Option<String>,
+}
+
+/// Request payload for updating an existing diet entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateDietEntryRequest {
+    pub id: i64,
+    pub member_id: Option<i64>,
+    pub timestamp: Option<String>,
+    pub meal_type: Option<MealType>,
+    pub description: Option<String>,
+    pub calories: Option<i64>,
+    pub notes: Option<String>,
+}
+
+/// Filter criteria for querying diet entries
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DietEntryFilter {
+    pub member_id: Option<i64>,
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+}
+
+// ============================================================================
+// Database State
+// ============================================================================
+
+/// Holds the database path for use in commands
+pub struct DbPath(pub String);
+
+// ============================================================================
+// Tauri Commands
+// ============================================================================
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+/// Create a new diet entry (#38)
+#[tauri::command]
+async fn create_diet_entry(
+    db_path: State<'_, DbPath>,
+    member_id: i64,
+    timestamp: String,
+    meal_type: String,
+    description: String,
+    calories: Option<i64>,
+    notes: Option<String>,
+) -> Result<DietEntry, String> {
+    // Parse and validate meal_type
+    let meal_type_enum: MealType = meal_type.parse().map_err(|e: String| e)?;
+
+    // Connect to database
+    let db = rusqlite::Connection::open(&db_path.0)
+        .map_err(|e| format!("Failed to open database: {}", e))?;
+
+    // Validate that member_id exists in family_members table
+    let member_exists: bool = db
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM family_members WHERE id = ?)",
+            [member_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Failed to validate member_id: {}", e))?;
+
+    if !member_exists {
+        return Err(format!("Member with id {} does not exist", member_id));
+    }
+
+    // Insert the new diet entry
+    db.execute(
+        "INSERT INTO diet_entries (member_id, timestamp, meal_type, description, calories, notes) VALUES (?, ?, ?, ?, ?, ?)",
+        rusqlite::params![member_id, timestamp, meal_type_enum.to_string(), description, calories, notes],
+    )
+    .map_err(|e| format!("Failed to insert diet entry: {}", e))?;
+
+    // Get the ID of the newly inserted entry
+    let new_id = db.last_insert_rowid();
+
+    // Return the created entry
+    Ok(DietEntry {
+        id: new_id,
+        member_id,
+        timestamp,
+        meal_type: meal_type_enum,
+        description,
+        calories,
+        notes,
+    })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -33,6 +182,28 @@ pub fn run() {
             "#,
             kind: MigrationKind::Up,
         },
+        // Migration #36: Create diet_entries table
+        Migration {
+            version: 2,
+            description: "create_diet_entries_table",
+            sql: r#"
+                CREATE TABLE IF NOT EXISTS diet_entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    member_id INTEGER NOT NULL,
+                    timestamp DATETIME NOT NULL,
+                    meal_type TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    calories INTEGER,
+                    notes TEXT,
+                    FOREIGN KEY (member_id) REFERENCES family_members(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_diet_entries_member_id ON diet_entries(member_id);
+                CREATE INDEX IF NOT EXISTS idx_diet_entries_timestamp ON diet_entries(timestamp);
+                CREATE INDEX IF NOT EXISTS idx_diet_entries_member_timestamp ON diet_entries(member_id, timestamp);
+            "#,
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
@@ -42,7 +213,15 @@ pub fn run() {
                 .add_migrations("sqlite:tracker.db", migrations)
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![greet])
+        .setup(|app| {
+            // Get the app data directory and set up the database path
+            let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
+            std::fs::create_dir_all(&app_data_dir).expect("Failed to create app data dir");
+            let db_path = app_data_dir.join("tracker.db").to_string_lossy().to_string();
+            app.manage(DbPath(db_path));
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![greet, create_diet_entry])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
