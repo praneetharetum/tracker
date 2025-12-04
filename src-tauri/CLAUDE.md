@@ -96,6 +96,38 @@ Creates a new diet entry with validation.
 
 **Returns:** Created `DietEntry` with generated ID or error string.
 
+### get_diet_entries(...) -> Result<Vec<DietEntry>, String>
+Retrieves diet entries with optional filters.
+
+**Parameters:**
+- `member_id: Option<i64>` - Filter by family member
+- `start_date: Option<String>` - Filter entries >= this timestamp
+- `end_date: Option<String>` - Filter entries <= this timestamp
+
+**Returns:** Array of `DietEntry` sorted by timestamp DESC.
+
+### update_diet_entry(...) -> Result<DietEntry, String>
+Updates an existing diet entry. Only provided fields are changed.
+
+**Parameters:**
+- `id: i64` - Required. Entry ID to update
+- `member_id: Option<i64>` - New member (validated if provided)
+- `timestamp: Option<String>` - New timestamp
+- `meal_type: Option<String>` - New meal type
+- `description: Option<String>` - New description
+- `calories: Option<i64>` - New calorie count
+- `notes: Option<String>` - New notes
+
+**Returns:** Updated `DietEntry` or error if not found.
+
+### delete_diet_entry(id: i64) -> Result<(), String>
+Deletes a diet entry.
+
+**Parameters:**
+- `id: i64` - Entry ID to delete
+
+**Returns:** Success or error if not found.
+
 ## App Initialization
 
 ```rust
@@ -110,7 +142,13 @@ tauri::Builder::default()
         app.manage(DbPath(app_data_dir.join("tracker.db")));
         Ok(())
     })
-    .invoke_handler(tauri::generate_handler![greet, create_diet_entry])
+    .invoke_handler(tauri::generate_handler![
+        greet,
+        create_diet_entry,
+        get_diet_entries,
+        update_diet_entry,
+        delete_diet_entry
+    ])
     .run(tauri::generate_context!())
 ```
 

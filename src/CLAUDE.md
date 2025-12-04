@@ -11,6 +11,7 @@ src/
 ├── App.css       # Application styles (light/dark theme support)
 ├── index.css     # Global styles and CSS reset
 ├── db.ts         # Database service layer for SQLite operations
+├── diet.ts       # Diet entry API (Tauri command wrappers)
 └── vite-env.d.ts # Vite TypeScript declarations
 ```
 
@@ -41,6 +42,22 @@ Database service layer providing typed CRUD operations via `@tauri-apps/plugin-s
 - `deleteTrackedItem(id)` - Delete item
 - `seedDefaultFamilyMembers()` - Seeds Mom, Dad, Child if no members exist
 
+### diet.ts
+Diet entry service layer using Tauri commands (via `invoke`):
+
+**Types:**
+- `MealType` - 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack' | 'Other'
+- `DietEntry` - id, member_id, timestamp, meal_type, description, calories, notes
+- `CreateDietEntryParams` - Input for creating entries
+- `UpdateDietEntryParams` - Input for updating entries (all fields optional)
+- `DietEntryFilter` - Query filters (memberId, startDate, endDate)
+
+**Functions:**
+- `createDietEntry(params)` - Create new diet entry
+- `getDietEntries(filters?)` - Get entries with optional filters
+- `updateDietEntry(id, params)` - Update existing entry
+- `deleteDietEntry(id)` - Delete entry
+
 ## Database Access Pattern
 
 Uses singleton pattern for database connection:
@@ -66,12 +83,12 @@ All queries use parameterized statements with `$1`, `$2`, etc. placeholders.
 
 ## Calling Backend Commands
 
-Use Tauri's invoke API to call Rust commands:
+Use the typed wrapper functions from `diet.ts`:
 ```typescript
-import { invoke } from '@tauri-apps/api/core';
+import { createDietEntry, getDietEntries, updateDietEntry, deleteDietEntry } from './diet';
 
-// Example: Create a diet entry
-const entry = await invoke('create_diet_entry', {
+// Create a diet entry
+const entry = await createDietEntry({
   memberId: 1,
   timestamp: '2024-01-15T12:00:00Z',
   mealType: 'Lunch',
@@ -79,6 +96,21 @@ const entry = await invoke('create_diet_entry', {
   calories: 450,
   notes: 'High protein meal'
 });
+
+// Get entries with filters
+const entries = await getDietEntries({ memberId: 1, startDate: '2024-01-01' });
+
+// Update entry
+await updateDietEntry(entry.id, { calories: 500 });
+
+// Delete entry
+await deleteDietEntry(entry.id);
+```
+
+Or use Tauri's invoke API directly:
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+const entry = await invoke('create_diet_entry', { memberId: 1, ... });
 ```
 
 ## Development
