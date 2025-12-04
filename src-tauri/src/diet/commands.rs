@@ -124,6 +124,7 @@ pub async fn get_diet_entries(
 
 /// Update an existing diet entry (#40)
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn update_diet_entry(
     db_path: State<'_, DbPath>,
     id: i64,
