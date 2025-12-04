@@ -7,13 +7,20 @@ Rust + Tauri 2 backend for the Tracker desktop application.
 ```
 src-tauri/
 ├── src/
-│   ├── lib.rs        # Main library: commands, migrations, data models
-│   └── main.rs       # Entry point (calls tracker_lib::run())
-├── build.rs          # Tauri build script
-├── Cargo.toml        # Rust dependencies
-├── Cargo.lock        # Locked dependency versions
-├── tauri.conf.json   # Tauri app configuration
-└── icons/            # App icons for all platforms
+│   ├── lib.rs           # App setup, re-exports
+│   ├── main.rs          # Entry point (calls tracker_lib::run())
+│   ├── db/
+│   │   ├── mod.rs       # DbPath state, module exports
+│   │   └── migrations.rs # Database migrations
+│   └── diet/
+│       ├── mod.rs       # Module exports
+│       ├── models.rs    # MealType, DietEntry, request/response types
+│       └── commands.rs  # Tauri commands (create, get, update, delete)
+├── build.rs             # Tauri build script
+├── Cargo.toml           # Rust dependencies
+├── Cargo.lock           # Locked dependency versions
+├── tauri.conf.json      # Tauri app configuration
+└── icons/               # App icons for all platforms
 ```
 
 ## Dependencies (Cargo.toml)
@@ -61,29 +68,32 @@ src-tauri/
 
 **Indexes:** `idx_diet_entries_member_id`, `idx_diet_entries_timestamp`, `idx_diet_entries_member_timestamp`
 
-## Data Models (lib.rs)
+## Modules
 
-### MealType Enum
-```rust
-pub enum MealType {
-    Breakfast, Lunch, Dinner, Snack, Other
-}
-```
-Implements `Display`, `FromStr`, `Serialize`, `Deserialize`.
+### db/ - Database Module
+- `db::DbPath` - Managed state holding database file path
+- `db::migrations::get_migrations()` - Returns all database migrations
 
-### Structs
+### diet/ - Diet Entry Module
+**Models (diet/models.rs):**
+- `MealType` enum - Breakfast, Lunch, Dinner, Snack, Other
 - `DietEntry` - Database row representation
 - `CreateDietEntryRequest` - Input for create command
-- `UpdateDietEntryRequest` - Input for update command (all fields optional except id)
+- `UpdateDietEntryRequest` - Input for update command
 - `DietEntryFilter` - Query filters (member_id, start_date, end_date)
-- `DbPath` - Managed state holding database file path
+
+**Commands (diet/commands.rs):**
+- `create_diet_entry` - Creates a new diet entry with member validation
+- `get_diet_entries` - Retrieves entries with optional filters
+- `update_diet_entry` - Updates an existing entry
+- `delete_diet_entry` - Deletes an entry
 
 ## Tauri Commands
 
 ### greet(name: &str) -> String
 Demo command returning a greeting message.
 
-### create_diet_entry(...) -> Result<DietEntry, String>
+### diet::create_diet_entry(...) -> Result<DietEntry, String>
 Creates a new diet entry with validation.
 
 **Parameters:**
@@ -96,7 +106,7 @@ Creates a new diet entry with validation.
 
 **Returns:** Created `DietEntry` with generated ID or error string.
 
-### get_diet_entries(...) -> Result<Vec<DietEntry>, String>
+### diet::get_diet_entries(...) -> Result<Vec<DietEntry>, String>
 Retrieves diet entries with optional filters.
 
 **Parameters:**
@@ -106,7 +116,7 @@ Retrieves diet entries with optional filters.
 
 **Returns:** Array of `DietEntry` sorted by timestamp DESC.
 
-### update_diet_entry(...) -> Result<DietEntry, String>
+### diet::update_diet_entry(...) -> Result<DietEntry, String>
 Updates an existing diet entry. Only provided fields are changed.
 
 **Parameters:**
@@ -120,7 +130,7 @@ Updates an existing diet entry. Only provided fields are changed.
 
 **Returns:** Updated `DietEntry` or error if not found.
 
-### delete_diet_entry(id: i64) -> Result<(), String>
+### diet::delete_diet_entry(id: i64) -> Result<(), String>
 Deletes a diet entry.
 
 **Parameters:**
@@ -134,54 +144,51 @@ Deletes a diet entry.
 tauri::Builder::default()
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_sql::Builder::default()
-        .add_migrations("sqlite:tracker.db", migrations)
+        .add_migrations("sqlite:tracker.db", db::migrations::get_migrations())
         .build())
     .setup(|app| {
-        // Set up DbPath state with app data directory
         let app_data_dir = app.path().app_data_dir()?;
         app.manage(DbPath(app_data_dir.join("tracker.db")));
         Ok(())
     })
     .invoke_handler(tauri::generate_handler![
         greet,
-        create_diet_entry,
-        get_diet_entries,
-        update_diet_entry,
-        delete_diet_entry
+        diet::create_diet_entry,
+        diet::get_diet_entries,
+        diet::update_diet_entry,
+        diet::delete_diet_entry
     ])
     .run(tauri::generate_context!())
 ```
 
 ## Adding New Commands
 
-1. Define the command function with `#[tauri::command]`:
+1. Add command to appropriate module (e.g., `diet/commands.rs`):
 ```rust
 #[tauri::command]
-async fn my_command(param: String) -> Result<MyResponse, String> {
+pub async fn my_command(param: String) -> Result<MyResponse, String> {
     // Implementation
 }
 ```
 
-2. Register in `invoke_handler`:
+2. Export from module's `mod.rs`:
 ```rust
-.invoke_handler(tauri::generate_handler![greet, create_diet_entry, my_command])
+pub use commands::my_command;
 ```
 
-3. Call from frontend:
-```typescript
-const result = await invoke('my_command', { param: 'value' });
+3. Register in `lib.rs` invoke_handler:
+```rust
+.invoke_handler(tauri::generate_handler![..., diet::my_command])
 ```
 
 ## Adding Migrations
 
-Add new `Migration` to the `migrations` vec in `run()`:
+Add new migration in `db/migrations.rs`:
 ```rust
 Migration {
     version: 3,  // Increment version
     description: "description_here",
-    sql: r#"
-        -- SQL statements
-    "#,
+    sql: r#"-- SQL statements"#,
     kind: MigrationKind::Up,
 },
 ```

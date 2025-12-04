@@ -35,7 +35,7 @@ export interface UpdateDietEntryParams {
   mealType?: MealType;
   description?: string;
   calories?: number | null;
-  notes?: string | null;
+  notes?: number | null;
 }
 
 /** Filter parameters for querying diet entries */

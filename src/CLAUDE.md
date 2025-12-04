@@ -11,7 +11,8 @@ src/
 ├── App.css       # Application styles (light/dark theme support)
 ├── index.css     # Global styles and CSS reset
 ├── db.ts         # Database service layer for SQLite operations
-├── diet.ts       # Diet entry API (Tauri command wrappers)
+├── diet/
+│   └── index.ts  # Diet entry API (types + Tauri command wrappers)
 └── vite-env.d.ts # Vite TypeScript declarations
 ```
 
@@ -42,7 +43,7 @@ Database service layer providing typed CRUD operations via `@tauri-apps/plugin-s
 - `deleteTrackedItem(id)` - Delete item
 - `seedDefaultFamilyMembers()` - Seeds Mom, Dad, Child if no members exist
 
-### diet.ts
+### diet/index.ts
 Diet entry service layer using Tauri commands (via `invoke`):
 
 **Types:**
@@ -83,7 +84,7 @@ All queries use parameterized statements with `$1`, `$2`, etc. placeholders.
 
 ## Calling Backend Commands
 
-Use the typed wrapper functions from `diet.ts`:
+Use the typed wrapper functions from `diet/`:
 ```typescript
 import { createDietEntry, getDietEntries, updateDietEntry, deleteDietEntry } from './diet';
 
